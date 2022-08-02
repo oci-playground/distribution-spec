@@ -402,6 +402,9 @@ This indicates that the upload session has begun and that the client MAY proceed
 
 ##### Pushing Manifests
 
+*Note: Clients should should see [client-implementation.md](client-implementation.md)
+for more details on pushing a manifest with a `refers` field.*
+
 To push a manifest, perform a `PUT` request to a path in the following format, and with the following headers and body: `/v2/<name>/manifests/<reference>` <sup>[end-7](#endpoints)</sup>
 
 Clients SHOULD set the `Content-Type` header to the type of the manifest being pushed.
