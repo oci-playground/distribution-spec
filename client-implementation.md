@@ -49,7 +49,7 @@ To pull artifacts that reference an existing manifest:
 - Tooling that copies images between registries may recursively query for referrers and copy them.
 - Copying an artifact that refers to an image uses the same pull and push steps described above and should support both existing registries and registries with the referrers API on both the pull and push.
 
-##### Deleting Manifests
+### Deleting Manifests
 
 For managing existing registries without the referrers API:
 
