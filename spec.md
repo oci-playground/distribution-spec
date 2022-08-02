@@ -419,14 +419,6 @@ Manifest byte stream:
 }
 ```
 
-If a manifest of type [OCI Image Manifest](TODO) or [OCI Artifact Manifest](TODO) includes a `refers` field,
-then the client must check whether [end-12](#endpoints) returns a 404. If [end-12](#endpoints) does return a 404:
-1. Attempt to pull the [digest tag](TODO)
-2. If the [digest tag](TODO) returns a 404, initialize an empty index.
-3. Create a descriptor with the manifest just pullled
-4. Pull up the artifact type from the image manifest config `mediaType`, or the artifact manifest `artifactType` field
-5. Pull up the annotations
-
 `<name>` is the namespace of the repository, and the `<reference>` MUST be either a) a digest or b) a tag.
 
 The uploaded manifest MUST reference any blobs that make up the artifact.
@@ -492,6 +484,10 @@ The tags MUST be in lexical order.
 When using the `last` query parameter, the `n` parameter is OPTIONAL.
 
 ##### Listing Referrers
+
+*Note: this feature is only available in distibution-spec 1.1+.
+Clients should see [client-implementation.md](client-implementation.md)
+for more details on implementing this.*
 
 To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12](#endpoints)</sup>
 
