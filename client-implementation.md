@@ -1,8 +1,7 @@
 # Client Implementations
 
 The distribution-spec is mainly concerned with registry behaviour. However,
-some registries may not always support all aspects of the spec
-(specifically, [end-12](TODO)).
+some registries may not always support all aspects of the spec.
 
 This document is a guide for clients that wish to add backwards compaitibility
 for registries which only use older endpoints.
