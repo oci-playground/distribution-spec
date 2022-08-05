@@ -1,57 +1,67 @@
 # Client Implementations
 
-The distribution-spec is mainly concerned with registry behaviour. However,
-some registries may not always support all aspects of the spec.
+This document describes client implementation recommendations for interoperability with registry servers and other clients using the OCI Distribution Spec.
 
-This document is a guide for clients that wish to add backwards compaitibility
-for registries which only use older endpoints.
+## Backwards Compatibility
 
-For the remainder of this document "referrers API" will refer to [end-12](TODO),
-and the use of reference types.
+Client implementations SHOULD support registries that implement partial or older versions of the OCI Distribution Spec.
+This section describes how client fallback procedures when an API is not available.
 
-## Digest Tags
+### Referrers API
 
-For registries that do not support the referrers API, a tag MUST be pushed containing an index of all manifests that refer to the specified manifest, matching the API response above.
-The tag uses the following schema:
+The Referrers API here is described by [Listing Referrers](spec.md#listing-referrers) and [end-12](spec.md#endpoints).
+
+A client that pushing an Image or Artifact manifest with a defined `Refers` field MUST verify the Referrers API is available.
+A client querying the Referrers API and receiving a 404 MUST fallback to using an Index pushed to a tag described by the following schema.
+
+**Tag Schema**
 
 ```text
 <alg>-<ref>
 ```
 
-- E.g. `registry.example.org/project:sha256-0000000000000000000000000000000000000000000000000000000000000000`
-- `<alg>`: the digest algorithm
+- `<alg>`: the digest algorithm (e.g. `sha256` or `sha512`)
 - `<ref>`: the digest from the `refers` field (limit of 64 characters)
-- Periodic garbage collection may be performed by clients pushing new referrers, deleting stale referrers that have been replaced with newer versions, and tags that no longer point to an accessible manifest.
-- Clients can verify the registry does not support the referrers API by querying the API and checking for a 404.
-- Clients should pull the existing tag and extend it with additional entries, minimizing the time between the pull and push to reduce the chance of overwriting changes from other clients.
-- Clients should use a conditional push for registries that support ETag conditions to avoid overwriting a tag that has been modified by another client since the previous tag manifest was pulled.
 
-## Client Expectations
+For example, a manifest with the `Refers` field digest set to `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` in the `registry.example.org/project` repository would have a expect an Index at `registry.example.org/project:sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
 
-### Creating Artifacts
+**Pushing Manifests**
 
-- For portability, clients should generate artifacts using image-spec until all registries where the artifact is pushed to have been upgraded.
-- The descriptor of the manifest this artifact refers to should be set in the `refers` field of the manifest.
-- Other metadata should be included in the manifest annotations.
-- When pushing, the registry should be checked for the referrers API support.
-- If the referrers API is not available, the artifact should be pushed with a tag using the digest schema. Tags with the digest schema should not be pushed if the referrers API is available.
+When pushing an Image or Artifact manifest with the `Refers` field and the Referrers API returns a 404, the client MUST:
 
-### Pulling Artifacts
+1. Pull the Index using the tag schema.
+1. If the tag returns a manifest other than the expected Index, the client SHOULD report a failure and skip the remaining steps.
+1. If the tag returns a 404, the client MUST begin with an empty Index.
+1. Verify the descriptor for the manifest is not already in the Index (duplicate entries SHOULD NOT be created).
+1. Append a descriptor for the pushed manifest to the Index manifests.
+   The value of the `artifactType` MUST be set in the descriptor to value of the `artifactType` in the Artifact manifest, or the Config descriptor `mediaType` in the Image manifest.
+   All annotations from the Image or Artifact manifest MUST be copied to this descriptor.
+1. Push the updated Index using the same tag schema.
+   The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
 
-To pull artifacts that reference an existing manifest:
+**Listing Referrers**
 
-- Clients requests artifacts associated with a manifest first query the referrers API using the digest of the requested manifest.
-- If the request fails, clients must fall back to listing tags in the repository and pull manifests for each tag with the matching `<alg>` and `<ref>` prefix.
-- Clients then pull any artifact matching their criteria from the API response or the list generated from the tag query.
+If the Referrers API returns a 404, the client MUST fallback to pulling the tag schema.
+The response SHOULD be an Index with the same content that would be expected from the Referrers API.
+If the response to the Referrers API is a 404, and the tag schema does not return a valid Index, the client SHOULD assume there are no Referrers to the manifest.
 
-### Copying Images
+**Deleting Referrers**
 
-- Tooling that copies images between registries may recursively query for referrers and copy them.
-- Copying an artifact that refers to an image uses the same pull and push steps described above and should support both existing registries and registries with the referrers API on both the pull and push.
+When deleting an Image or Artifact manifest that contains a `Refers` field, and the Referrers API returns a 404, clients SHOULD:
 
-### Deleting Manifests
+1. Pull the Index using the tag schema.
+1. Delete the descriptor from the manifest list to the deleted manifest.
+1. Push the updated Index using the same tag schema.
+   The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
 
-For managing existing registries without the referrers API:
+**Deleting Manifests**
 
-- Client tooling that deletes manifests should also delete digest tags that reference that manifest.
-- Client tooling may periodically check for dangling digest tags that refer to missing manifest, and prune those tags.
+Clients MAY delete a tag using the tag schema when it returns a valid Index manifest and the referred manifest has been deleted.
+
+**Recommendations**
+
+- Clients MAY verify the registry does not support the referrers API by querying the API and checking for a 404.
+- When the Referrers API is not available, clients MAY perform periodic garbage collection of stale tag schema tags and descriptors in the Index manifest list that no longer exist.
+- Clients MAY use a conditional HTTP push for registries that support ETag conditions to avoid conflicts with other clients.
+- For portability, clients MAY generate artifacts using image-spec until all registries where the artifact is pushed to have been upgraded.
+- Tooling that copies images between registries MAY recursively query for referrers and copy them.
