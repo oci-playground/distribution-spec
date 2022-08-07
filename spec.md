@@ -488,9 +488,9 @@ When using the `last` query parameter, the `n` parameter is OPTIONAL.
 
 ##### Listing Referrers
 
-*Note: this feature is only available in distibution-spec 1.1+.
-Clients should see [client-implementation.md](client-implementation.md)
-for more details on implementing this.*
+*Note: this feature was added in distibution-spec 1.1.
+Clients should see [client-implementation.md](client-implementation.md) for more details on implementing this.
+Registries should see [upgrading.md](upgrading.md) before enabling this.*
 
 To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12](#endpoints)</sup>
 
@@ -529,8 +529,8 @@ Upon success, the response MUST be a json body in the following format (an index
 }
 ```
 
-A `Link` header MUST be included in the response when additional results are available, and it MUST be
-set to the URL for the next page of results.
+A `Link` header MUST be included in the response when additional results are available.
+The `Link` header MUST be set according to [RFC5988](https://www.rfc-editor.org/rfc/rfc5988.html) with the Relation Type `rel="next"`.
 
 #### Content Management
 
