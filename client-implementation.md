@@ -11,10 +11,10 @@ This section describes how client fallback procedures when an API is not availab
 
 The Referrers API here is described by [Listing Referrers](spec.md#listing-referrers) and [end-12](spec.md#endpoints).
 
-A client that pushing an Image or Artifact manifest with a defined `Refers` field MUST verify the Referrers API is available.
+A client that pushes an Image or Artifact manifest with a defined `Refers` field MUST verify the Referrers API is available.
 A client querying the Referrers API and receiving a 404 MUST fallback to using an Index pushed to a tag described by the following schema.
 
-**Tag Schema**
+#### Referrers Tag Schema
 
 ```text
 <alg>-<ref>
@@ -25,7 +25,7 @@ A client querying the Referrers API and receiving a 404 MUST fallback to using a
 
 For example, a manifest with the `Refers` field digest set to `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` in the `registry.example.org/project` repository would have a expect an Index at `registry.example.org/project:sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
 
-**Pushing Manifests**
+#### Pushing Manifests with Refers
 
 When pushing an Image or Artifact manifest with the `Refers` field and the Referrers API returns a 404, the client MUST:
 
@@ -39,13 +39,13 @@ When pushing an Image or Artifact manifest with the `Refers` field and the Refer
 1. Push the updated Index using the same tag schema.
    The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
 
-**Listing Referrers**
+#### Listing Referrers
 
 If the Referrers API returns a 404, the client MUST fallback to pulling the tag schema.
 The response SHOULD be an Index with the same content that would be expected from the Referrers API.
 If the response to the Referrers API is a 404, and the tag schema does not return a valid Index, the client SHOULD assume there are no Referrers to the manifest.
 
-**Deleting Referrers**
+#### Deleting Referrers
 
 When deleting an Image or Artifact manifest that contains a `Refers` field, and the Referrers API returns a 404, clients SHOULD:
 
@@ -54,11 +54,11 @@ When deleting an Image or Artifact manifest that contains a `Refers` field, and 
 1. Push the updated Index using the same tag schema.
    The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
 
-**Deleting Manifests**
+#### Deleting Manifests with Referrers
 
 Clients MAY delete a tag using the tag schema when it returns a valid Index manifest and the referred manifest has been deleted.
 
-**Recommendations**
+#### Referrers API Recommendations
 
 - Clients MAY verify the registry does not support the referrers API by querying the API and checking for a 404.
 - When the Referrers API is not available, clients MAY perform periodic garbage collection of stale tag schema tags and descriptors in the Index manifest list that no longer exist.
