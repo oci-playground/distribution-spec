@@ -513,7 +513,6 @@ Upon success, the response MUST be a json body in the following format (an index
       "mediaType": "application/vnd.oci.image.manifest.v1+json",
       "size": 1234,
       "digest": "sha256:a1a1a1...",
-      "artifactType": "application/vnd.example.sbom.v1",
       "annotations": {
         "org.opencontainers.artifact.created": "2022-01-01T14:42:55Z",
         "org.example.sbom.format": "json"
