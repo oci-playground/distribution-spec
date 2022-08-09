@@ -496,7 +496,7 @@ When using the `last` query parameter, the `n` parameter is OPTIONAL.
 Clients should see [client-implementation.md](client-implementation.md) for more details on implementing this.
 Registries should see [upgrading.md](upgrading.md) before enabling this.*
 
-To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12](#endpoints)</sup>
+To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12a](#endpoints)</sup>
 
 `<name>` is the namespace of the repository.
 Assuming a repository is found, this request MUST return a `200 OK` response code.
@@ -534,6 +534,38 @@ Upon success, the response MUST be a json body in the following format (an index
 
 A `Link` header MUST be included in the response when additional results are available.
 The `Link` header MUST be set according to [RFC5988](https://www.rfc-editor.org/rfc/rfc5988.html) with the Relation Type `rel="next"`.
+
+The registry SHOULD support filtering on `artifactType`<sup>[end-12b](#endpoints)</sup>. 
+If filtering is requested and applied, the response MUST include an annotation (`org.opencontainers.references.filtersApplied`) denoting that an `artifactType` filter was applied.
+
+Example request with filtering:
+```
+GET /v2/<name>/referrers/<ref>?artifactType=application/vnd.example.icecream.v1
+```
+Response:
+```jsonc
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "manifests": [
+    {
+      "mediaType": "application/vnd.oci.image.artifact.v1+json",
+      "artifactType": "application/vnd.example.icecream.v1", // pulled up from manifest
+      "size": 1234,
+      "digest": "sha256:a1a1a1...",
+      "annotations": [
+        // annotations pulled up from manifest
+        "org.opencontainers.artifact.created": "2022-01-01T14:42:55Z",
+        "org.example.icecream.flavor": "chocolate"
+      ]
+    }
+  ],
+  "annotations": {
+    "org.opencontainers.references.filtersApplied": "artifactType"
+  }
+}
+```
+
 
 #### Content Management
 
@@ -579,22 +611,23 @@ This endpoint MAY be used for authentication/authorization purposes, but this is
 
 #### Endpoints
 
-| ID     | Method         | API Endpoint                                                      | Success     | Failure           |
-| ------ | -------------- | ------------------------------------------------------------ | ----------- | ----------------- |
-| end-1  | `GET`          | `/v2/`                                                       | `200`       | `404`/`401`       |
-| end-2  | `GET` / `HEAD` | `/v2/<name>/blobs/<digest>`                                  | `200`       | `404`             |
-| end-3  | `GET` / `HEAD` | `/v2/<name>/manifests/<reference>`                           | `200`       | `404`             |
-| end-4a | `POST`         | `/v2/<name>/blobs/uploads/`                                  | `202`       | `404`             |
-| end-4b | `POST`         | `/v2/<name>/blobs/uploads/?digest=<digest>`                  | `201`/`202` | `404`/`400`       |
-| end-5  | `PATCH`        | `/v2/<name>/blobs/uploads/<reference>`                       | `202`       | `404`/`416`       |
-| end-6  | `PUT`          | `/v2/<name>/blobs/uploads/<reference>?digest=<digest>`       | `201`       | `404`/`400`       |
-| end-7  | `PUT`          | `/v2/<name>/manifests/<reference>`                           | `201`       | `404`             |
-| end-8a | `GET`          | `/v2/<name>/tags/list`                                       | `200`       | `404`             |
-| end-8b | `GET`          | `/v2/<name>/tags/list?n=<integer>&last=<integer>`            | `200`       | `404`             |
-| end-9  | `DELETE`       | `/v2/<name>/manifests/<reference>`                           | `202`       | `404`/`400`/`405` |
-| end-10 | `DELETE`       | `/v2/<name>/blobs/<digest>`                                  | `202`       | `404`/`405`       |
-| end-11 | `POST`         | `/v2/<name>/blobs/uploads/?mount=<digest>&from=<other_name>` | `201`       | `404`             |
-| end-12 | `GET`          | `/v2/<name>/referrers/<reference>`                           | `200`       | `404`             |
+| ID      | Method         | API Endpoint                                                   | Success     | Failure           |
+| ------- | -------------- | -------------------------------------------------------------- | ----------- | ----------------- |
+| end-1   | `GET`          | `/v2/`                                                         | `200`       | `404`/`401`       |
+| end-2   | `GET` / `HEAD` | `/v2/<name>/blobs/<digest>`                                    | `200`       | `404`             |
+| end-3   | `GET` / `HEAD` | `/v2/<name>/manifests/<reference>`                             | `200`       | `404`             |
+| end-4a  | `POST`         | `/v2/<name>/blobs/uploads/`                                    | `202`       | `404`             |
+| end-4b  | `POST`         | `/v2/<name>/blobs/uploads/?digest=<digest>`                    | `201`/`202` | `404`/`400`       |
+| end-5   | `PATCH`        | `/v2/<name>/blobs/uploads/<reference>`                         | `202`       | `404`/`416`       |
+| end-6   | `PUT`          | `/v2/<name>/blobs/uploads/<reference>?digest=<digest>`         | `201`       | `404`/`400`       |
+| end-7   | `PUT`          | `/v2/<name>/manifests/<reference>`                             | `201`       | `404`             |
+| end-8a  | `GET`          | `/v2/<name>/tags/list`                                         | `200`       | `404`             |
+| end-8b  | `GET`          | `/v2/<name>/tags/list?n=<integer>&last=<integer>`              | `200`       | `404`             |
+| end-9   | `DELETE`       | `/v2/<name>/manifests/<reference>`                             | `202`       | `404`/`400`/`405` |
+| end-10  | `DELETE`       | `/v2/<name>/blobs/<digest>`                                    | `202`       | `404`/`405`       |
+| end-11  | `POST`         | `/v2/<name>/blobs/uploads/?mount=<digest>&from=<other_name>`   | `201`       | `404`             |
+| end-12a | `GET`          | `/v2/<name>/referrers/<reference>`                             | `200`       | `404`             |
+| end-12b | `GET`          | `/v2/<name>/referrers/<reference>?artifactType=<artifactType>` | `200`       | `404`             |
 
 #### Error Codes
 
