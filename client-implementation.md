@@ -9,7 +9,7 @@ This section describes how client fallback procedures when an API is not availab
 
 ### Referrers API
 
-The Referrers API here is described by [Listing Referrers](spec.md#listing-referrers) and [end-12](spec.md#endpoints).
+The Referrers API here is described by [Listing Referrers](spec.md#listing-referrers) and [end-12a](spec.md#endpoints).
 
 A client that pushes an Image or Artifact manifest with a defined `Refers` field MUST verify the Referrers API is available.
 A client querying the Referrers API and receiving a 404 MUST fallback to using an Index pushed to a tag described by the following schema.
