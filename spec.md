@@ -496,13 +496,17 @@ When using the `last` query parameter, the `n` parameter is OPTIONAL.
 Clients should see [client-implementation.md](client-implementation.md) for more details on implementing this.
 Registries should see [upgrading.md](upgrading.md) before enabling this.*
 
-To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12a](#endpoints)</sup>
+To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12a](#endpoints)</sup>.
 
 `<name>` is the namespace of the repository.
 Assuming a repository is found, this request MUST return a `200 OK` response code.
-If a query results in no referrers found, an empty manifest list MUST be returned.
 
-Upon success, the response MUST be a json body in the following format (an index / manifest list):
+Upon success, the response MUST be a JSON body with an Index containing a list of descriptors.
+Each descriptor is of an Image or Artifact manifest in the same `<name>` namespace with a `refers` field that specifies the value of `<reference>`.
+The descriptors MUST include an `artifactType` field that is set to the value of `artifactType` for an Artifact manifest if present, or the configuration descriptor's `mediaType` for an Image manifest.
+The descriptors MUST include annotations from the manifest of the Image or Artifact.
+If a query results in no matching referrers, an empty manifest list MUST be returned.
+If `<ref>` does not exist, a registry MAY return an empty list.
 
 ```json
 {
@@ -513,6 +517,7 @@ Upon success, the response MUST be a json body in the following format (an index
       "mediaType": "application/vnd.oci.image.manifest.v1+json",
       "size": 1234,
       "digest": "sha256:a1a1a1...",
+      "artifactType": "application/vnd.example.sbom.v1",
       "annotations": {
         "org.opencontainers.artifact.created": "2022-01-01T14:42:55Z",
         "org.example.sbom.format": "json"
@@ -532,40 +537,44 @@ Upon success, the response MUST be a json body in the following format (an index
 }
 ```
 
-A `Link` header MUST be included in the response when additional results are available.
+A `Link` header MUST be included in the response when the descriptor list cannot be returned in a single manifest.
+Each response is an Index manifest with different descriptors in the `manifests` field.
 The `Link` header MUST be set according to [RFC5988](https://www.rfc-editor.org/rfc/rfc5988.html) with the Relation Type `rel="next"`.
 
-The registry SHOULD support filtering on `artifactType`<sup>[end-12b](#endpoints)</sup>. 
-If filtering is requested and applied, the response MUST include an annotation (`org.opencontainers.references.filtersApplied`) denoting that an `artifactType` filter was applied.
+The registry SHOULD support filtering on `artifactType`.
+To fetch the list of referrers with a filter, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>?artifacttype=<mediaType>` <sup>[end-12b](#endpoints)</sup>.
+If filtering is requested and applied, the response MUST include an annotation (`org.opencontainers.referrers.filtersApplied`) denoting that an `artifactType` filter was applied.
+If multiple filters are applied, the annotation MUST contain a comma separated list of applied filters.
 
 Example request with filtering:
+
 ```
-GET /v2/<name>/referrers/<ref>?artifactType=application/vnd.example.icecream.v1
+GET /v2/<name>/referrers/<ref>?artifactType=application/vnd.example.sbom.v1
 ```
-Response:
-```jsonc
+
+Example response with filtering:
+
+```json
 {
   "schemaVersion": 2,
   "mediaType": "application/vnd.oci.image.index.v1+json",
   "manifests": [
     {
-      "mediaType": "application/vnd.oci.image.artifact.v1+json",
-      "artifactType": "application/vnd.example.icecream.v1", // pulled up from manifest
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
       "size": 1234,
       "digest": "sha256:a1a1a1...",
-      "annotations": [
-        // annotations pulled up from manifest
+      "artifactType": "application/vnd.example.sbom.v1",
+      "annotations": {
         "org.opencontainers.artifact.created": "2022-01-01T14:42:55Z",
-        "org.example.icecream.flavor": "chocolate"
-      ]
+        "org.example.sbom.format": "json"
+      }
     }
   ],
   "annotations": {
-    "org.opencontainers.references.filtersApplied": "artifactType"
+    "org.opencontainers.referrers.filtersApplied": "artifactType"
   }
 }
 ```
-
 
 #### Content Management
 
