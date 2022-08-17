@@ -5,7 +5,7 @@ This document describes how registries should add support for new APIs and featu
 ## Referrers API
 
 The Referrers API here is described by [Listing Referrers](spec.md#listing-referrers) and [end-12a](spec.md#endpoints).
-When registries add support for the Referrers API, this API needs to account for manifests that were pushed before the API was available using the [Client Implementation's tag schema](client-implementation.md#referrers-api).
+When registries add support for the Referrers API, this API needs to account for manifests that were pushed before the API was available using the [Referrers Tag Schema](spec.md#referrers-tag-schema).
 
 1. Registries MUST include preexisting Image and Artifact manifests that are listed in an Index tagged with the tag schema and have a valid Refers field.
 1. Registries MAY include all existing Image and Artifact manifests with a Refers field in the API response.
