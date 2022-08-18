@@ -16,6 +16,8 @@
 		2. [Push](#push)
 		3. [Content Discovery](#content-discovery)
 		4. [Content Management](#content-management)
+- [Backwards Compatibility](#backwards-compatibility)
+  - [Unavailable Referrers API](#unavailable-referrers-api)
 - [API](#api)
 	- [Endpoints](#endpoints)
 	- [Error Codes](#error-codes)
@@ -199,6 +201,7 @@ Pushing an artifact typically works in the opposite order as a pull: the blobs m
 A useful diagram is provided [here](https://github.com/google/go-containerregistry/tree/d7f8d06c87ed209507dd5f2d723267fe35b38a9f/pkg/v1/remote#anatomy-of-an-image-upload).
 
 A registry MAY reject a manifest of any type uploaded to the manifest endpoint if it references manifests or blobs that do not exist in the registry.
+A registry SHOULD accept a manifest with a `refers` field that references a manifest that does not exist.
 When a manifest is rejected for this reason, it must result in one or more `MANIFEST_BLOB_UNKNOWN` errors <sup>[code-1](#error-codes)</sup>.
 
 ##### Pushing blobs
@@ -402,9 +405,6 @@ This indicates that the upload session has begun and that the client MAY proceed
 
 ##### Pushing Manifests
 
-*Note: Clients should should see [client-implementation.md](client-implementation.md)
-for more details on pushing a manifest with a `refers` field.*
-
 To push a manifest, perform a `PUT` request to a path in the following format, and with the following headers and body: `/v2/<name>/manifests/<reference>` <sup>[end-7](#endpoints)</sup>
 
 Clients SHOULD set the `Content-Type` header to the type of the manifest being pushed.
@@ -443,6 +443,20 @@ An attempt to pull a nonexistent repository MUST return response code `404 Not F
 A registry SHOULD enforce some limit on the maximum manifest size that it can accept.
 A registry that enforces this limit SHOULD respond to a request to push a manifest over this limit with a response code `413 Payload Too Large`.
 Client and registry implementations SHOULD expect to be able to support manifest pushes of at least 4 megabytes.
+
+###### Pushing Manifests with Refers
+
+When pushing an Image or Artifact manifest with the `Refers` field and the [Referrers API](#listing-referrers) returns a 404, the client MUST:
+
+1. Pull the Index using the [referrers tag schema](#referrers-tag-schema).
+1. If that pull returns a manifest other than the expected Index, the client SHOULD report a failure and skip the remaining steps.
+1. If the tag returns a 404, the client MUST begin with an empty Index.
+1. Verify the descriptor for the manifest is not already in the Index (duplicate entries SHOULD NOT be created).
+1. Append a descriptor for the pushed manifest to the Index manifests.
+   The value of the `artifactType` MUST be set in the descriptor to value of the `artifactType` in the Artifact manifest, or the Config descriptor `mediaType` in the Image manifest.
+   All annotations from the Image or Artifact manifest MUST be copied to this descriptor.
+1. Push the updated Index using the same [referrers tag schema](#referrers-tag-schema).
+   The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
 
 #### Content Discovery
 
@@ -493,7 +507,6 @@ When using the `last` query parameter, the `n` parameter is OPTIONAL.
 ##### Listing Referrers
 
 *Note: this feature was added in distibution-spec 1.1.
-Clients should see [client-implementation.md](client-implementation.md) for more details on implementing this.
 Registries should see [upgrading.md](upgrading.md) before enabling this.*
 
 To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12a](#endpoints)</sup>.
@@ -506,7 +519,8 @@ Each descriptor is of an Image or Artifact manifest in the same `<name>` namespa
 The descriptors MUST include an `artifactType` field that is set to the value of `artifactType` for an Artifact manifest if present, or the configuration descriptor's `mediaType` for an Image manifest.
 The descriptors MUST include annotations from the manifest of the Image or Artifact.
 If a query results in no matching referrers, an empty manifest list MUST be returned.
-If `<ref>` does not exist, a registry MAY return an empty list.
+If `<ref>` does not exist, a registry MAY return an empty manifest list.
+After `<ref>` is pushed, the registry MUST include previously pushed entries in the manifest list.
 
 ```json
 {
@@ -576,6 +590,10 @@ Example response with filtering:
 }
 ```
 
+If the [Referrers API](#listing-referrers) returns a 404, the client MUST fallback to pulling the [referrers tag schema](#referrers-tag-schema).
+The response SHOULD be an Index with the same content that would be expected from the Referrers API.
+If the response to the [Referrers API](#listing-referrers) is a 404, and the tag schema does not return a valid Index, the client SHOULD assume there are no Referrers to the manifest.
+
 #### Content Management
 
 Content management refers to the deletion of blobs, tags, and manifests.
@@ -598,6 +616,15 @@ To delete a manifest, perform a `DELETE` request to a path in the following form
 Upon success, the registry MUST respond with a `202 Accepted` code.
 If the repository does not exist, the response MUST return `404 Not Found`.
 
+When deleting an Image or Artifact manifest that contains a `Refers` field, and the [Referrers API](#listing-referrers) returns a 404, clients SHOULD:
+
+1. Pull the Index using the [referrers tag schema](#referrers-tag-schema).
+1. Delete the descriptor from the manifest list to the deleted manifest.
+1. Push the updated Index using the same [referrers tag schema](#referrers-tag-schema).
+   The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
+
+When deleting a manifest that has an associated [referrers tag schema](#referrers-tag-schema), clients MAY also delete the referrers tag when it returns a valid Index manifest.
+
 ##### Deleting Blobs
 
 To delete a blob, perform a `DELETE` request to a path in the following format: `/v2/<name>/blobs/<digest>` <sup>[end-10](#endpoints)</sup>
@@ -605,6 +632,40 @@ To delete a blob, perform a `DELETE` request to a path in the following format: 
 `<name>` is the namespace of the repository, and `<digest>` is the digest of the blob to be deleted.
 Upon success, the registry MUST respond with code `202 Accepted`.
 If the blob is not found, a `404 Not Found` code MUST be returned.
+
+### Backwards Compatibility
+
+Client implementations MUST support registries that implement partial or older versions of the OCI Distribution Spec.
+This section describes client fallback procedures that MUST be implemented when a new/optional API is not available from a Registry.
+
+#### Unavailable Referrers API
+
+The following manifests are described in the [OCI Image Format Specification](https://github.com/opencontainers/image-spec):
+
+- [Artifact](https://github.com/opencontainers/image-spec/blob/main/artifact.md)
+- [Image](https://github.com/opencontainers/image-spec/blob/main/manifest.md)
+- [Index](https://github.com/opencontainers/image-spec/blob/main/image-index.md)
+
+A client that pushes an Image or Artifact manifest with a defined `Refers` field MUST verify the [Referrers API](#listing-referrers) is available or fallback to updating the Index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
+A client querying the [Referrers API](#listing-referrers) and receiving a 404 MUST fallback to using an Index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
+
+##### Referrers Tag Schema
+
+```text
+<alg>-<ref>
+```
+
+- `<alg>`: the digest algorithm (e.g. `sha256` or `sha512`)
+- `<ref>`: the digest from the `refers` field (limit of 64 characters)
+
+For example, a manifest with the `Refers` field digest set to `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` in the `registry.example.org/project` repository would have a descriptor in the Index at `registry.example.org/project:sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.
+
+This tag should return an Index matching the expected response of the [Referrers API](#listing-referrers).
+Maintaining the content of this tag is the responsibility of clients pushing and deleting Image and Artifact manifests that contain a `Refers` field.
+
+Multiple clients could attempt to update the tag simultaneously resulting in race conditions and data loss.
+Protection against race conditions is the responsibility of clients and end users, and can be resolved by using a registry that provides the [Referrers API](#listing-referrers).
+Clients MAY use a conditional HTTP push for registries that support ETag conditions to avoid conflicts with other clients.
 
 ### API
 
