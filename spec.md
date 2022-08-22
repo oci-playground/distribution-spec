@@ -18,6 +18,8 @@
 		4. [Content Management](#content-management)
 - [Backwards Compatibility](#backwards-compatibility)
   - [Unavailable Referrers API](#unavailable-referrers-api)
+- [Upgrade Procedures](#upgrade-procedures)
+  - [Enabling the Referrers API](#enabling-the-referrers-api)
 - [API](#api)
 	- [Endpoints](#endpoints)
 	- [Error Codes](#error-codes)
@@ -33,7 +35,7 @@ The **Open Container Initiative Distribution Specification** (a.k.a. "OCI Distri
 The specification is designed to be agnostic of content types.
 OCI Image types are currently the most prominent, which are defined in the [Open Container Initiative Image Format Specification](https://github.com/opencontainers/image-spec) (a.k.a. "OCI Image Spec").
 
-To support other artifact types, please see the [Open Container Initiative Artifact Authors Guide](https://github.com/opencontainers/artifacts) (a.k.a. "OCI Artifacts").
+To support other content types, please see the [Open Container Initiative Artifact Authors Guide](https://github.com/opencontainers/artifacts) (a.k.a. "OCI Artifacts").
 
 ### Historical Context
 
@@ -64,11 +66,17 @@ Several terms are used frequently in this document and warrant basic definitions
 - **Push**: the act of uploading Blobs and Manifests to a Registry
 - **Pull**: the act of downloading Blobs and Manifests from a Registry
 - **Blob**: the binary form of content that is stored by a Registry, addressable by a Digest
-- **Manifest**: a JSON document which defines an artifact uploaded via the manifests endpoint. A manifest may reference other blobs in a repository via descriptors. Examples of manifests are defined under the OCI Image Spec <sup>[apdx-2](#appendix)</sup>, such as the image manifest or the image index.</sup>
-- **Config**: a blob referenced in the Manifest which contains Artifact metadata. Config is defined under the OCI Image Spec <sup>[apdx-4](#appendix)</sup>
-- **Artifact**: one conceptual piece of content stored as Blobs with an accompanying Manifest containing a Config
+- **Manifest**: a JSON document uploaded via the manifests endpoint. A manifest may reference other manifests and blobs in a repository via descriptors. Examples of manifests are defined under the OCI Image Spec <sup>[apdx-2](#appendix)</sup>, such as the Image Manifest, Image Index, and Artifact Manifest.</sup>
+- **Image Index**: a manifest containing a list of manifests, defined under the OCI Image Spec <sup>[apdx-6](#appendix)</sup>.
+- **Image Manifest**: a manifest containing a config descriptor and list of layer descriptors, commonly used for container images, defined under the OCI Image Spec <sup>[apdx-2](#appendix)</sup>.
+- **Artifact Manifest**: a manifest containing a list of blob descriptors, defined under the OCI Image Spec <sup>[apdx-7](#appendix)</sup>.
+- **Config**: a blob referenced in the Image Manifest which contains metadata. Config is defined under the OCI Image Spec <sup>[apdx-4](#appendix)</sup>.
+- **Object**: one conceptual piece of content stored as Blobs with an accompanying Manifest. (This was previously described as an "Artifact", and has been renamed to avoid confusion with the "Artifact Manifest".)
+- **Descriptor**: a unique reference to content, either a Manifest or Blob, using a media type, Digest, and size. Descriptors are defined under the OCI Image Spec <sup>[apdx-5](#appendix)</sup>
 - **Digest**: a unique identifier created from a cryptographic hash of a Blob's content. Digests are defined under the OCI Image Spec <sup>[apdx-3](#appendix)</sup>
 - **Tag**: a custom, human-readable Manifest identifier
+- **Refers**: an association from one manifest to another, typically used to attach an artifact to an image. The refers field is included in the Image and Artifact Manifests.
+- **Referrers**: a list of manifests with a Refers relationship to specified Digest. The Referrers list is generated with a [query to a Registry](#listing-referrers).
 
 ## Notational Conventions
 
@@ -76,7 +84,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Use Cases
 
-### Artifact Verification
+### Content Verification
 
 A container engine would like to run verified image named "library/ubuntu", with the tag "latest".
 The engine contacts the registry, requesting the manifest for "library/ubuntu:latest".
@@ -85,15 +93,15 @@ After each layer is downloaded, the engine verifies the digest of the layer, ens
 
 ### Resumable Push
 
-Company X's build servers lose connectivity to a distribution endpoint before completing an artifact layer transfer.
-After connectivity returns, the build server attempts to re-upload the artifact.
+Company X's build servers lose connectivity to a distribution endpoint before completing a blob transfer.
+After connectivity returns, the build server attempts to re-upload the blob.
 The registry notifies the build server that the upload has already been partially attempted.
-The build server responds by only sending the remaining data to complete the artifact file.
+The build server responds by only sending the remaining data to complete the blob transfer.
 
 ### Resumable Pull
 
 Company X is having more connectivity problems but this time in their deployment datacenter.
-When downloading an artifact, the connection is interrupted before completion.
+When downloading a blob, the connection is interrupted before completion.
 The client keeps the partial data and uses http `Range` requests to avoid downloading repeated data.
 
 ### Layer Upload De-duplication
@@ -133,9 +141,9 @@ In order to test a registry's conformance against these workflow categories, ple
 
 #### Pull
 
-The process of pulling an artifact centers around retrieving two components: the manifest and one or more blobs.
+The process of pulling an Object centers around retrieving two components: the manifest and one or more blobs.
 
-Typically, the first step in pulling an artifact is to retrieve the manifest. However, you MAY retrieve content from the registry in any order.
+Typically, the first step in pulling an Object is to retrieve the manifest. However, you MAY retrieve content from the registry in any order.
 
 ##### Pulling manifests
 
@@ -197,12 +205,12 @@ If the blob or manifest is not found in the registry, the response code MUST be 
 
 #### Push
 
-Pushing an artifact typically works in the opposite order as a pull: the blobs making up the artifact are uploaded first, and the manifest last.
+Pushing an Object typically works in the opposite order as a pull: the blobs making up the Object are uploaded first, and the manifest last.
 A useful diagram is provided [here](https://github.com/google/go-containerregistry/tree/d7f8d06c87ed209507dd5f2d723267fe35b38a9f/pkg/v1/remote#anatomy-of-an-image-upload).
 
 A registry MAY reject a manifest of any type uploaded to the manifest endpoint if it references manifests or blobs that do not exist in the registry.
 A registry SHOULD accept a manifest with a `refers` field that references a manifest that does not exist.
-When a manifest is rejected for this reason, it must result in one or more `MANIFEST_BLOB_UNKNOWN` errors <sup>[code-1](#error-codes)</sup>.
+When a manifest is rejected for these reasons, it MUST result in one or more `MANIFEST_BLOB_UNKNOWN` errors <sup>[code-1](#error-codes)</sup>.
 
 ##### Pushing blobs
 
@@ -424,7 +432,7 @@ Manifest byte stream:
 
 `<name>` is the namespace of the repository, and the `<reference>` MUST be either a) a digest or b) a tag.
 
-The uploaded manifest MUST reference any blobs that make up the artifact.
+The uploaded manifest MUST reference any blobs that make up the Object.
 However, the list of blobs MAY be empty.
 
 The registry MUST store the manifest in the exact byte representation provided by the client.
@@ -446,17 +454,17 @@ Client and registry implementations SHOULD expect to be able to support manifest
 
 ###### Pushing Manifests with Refers
 
-When pushing an Image or Artifact manifest with the `Refers` field and the [Referrers API](#listing-referrers) returns a 404, the client MUST:
+When pushing an Image or Artifact Manifest with the `refers` field and the [Referrers API](#listing-referrers) returns a 404, the client MUST:
 
-1. Pull the Index using the [referrers tag schema](#referrers-tag-schema).
-1. If that pull returns a manifest other than the expected Index, the client SHOULD report a failure and skip the remaining steps.
-1. If the tag returns a 404, the client MUST begin with an empty Index.
-1. Verify the descriptor for the manifest is not already in the Index (duplicate entries SHOULD NOT be created).
-1. Append a descriptor for the pushed manifest to the Index manifests.
-   The value of the `artifactType` MUST be set in the descriptor to value of the `artifactType` in the Artifact manifest, or the Config descriptor `mediaType` in the Image manifest.
-   All annotations from the Image or Artifact manifest MUST be copied to this descriptor.
-1. Push the updated Index using the same [referrers tag schema](#referrers-tag-schema).
-   The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
+1. Pull the current Referrers list using the [referrers tag schema](#referrers-tag-schema).
+1. If that pull returns a Manifest other than the expected Image Index, the client SHOULD report a failure and skip the remaining steps.
+1. If the tag returns a 404, the client MUST begin with an empty Image Index.
+1. Verify the descriptor for the manifest is not already in the Referrers list (duplicate entries SHOULD NOT be created).
+1. Append a descriptor for the pushed Image or Artifact Manifest to the manifests in the Referrers list.
+   The value of the `artifactType` MUST be set in the descriptor to value of the `artifactType` in the Artifact Manifest, or the Config descriptor `mediaType` in the Image Manifest.
+   All annotations from the Image or Artifact Manifest MUST be copied to this descriptor.
+1. Push the updated Referrers list using the same [referrers tag schema](#referrers-tag-schema).
+   The client MAY use conditional HTTP requests to prevent overwriting a Referrers list that has changed since it was first pulled.
 
 #### Content Discovery
 
@@ -507,20 +515,20 @@ When using the `last` query parameter, the `n` parameter is OPTIONAL.
 ##### Listing Referrers
 
 *Note: this feature was added in distibution-spec 1.1.
-Registries should see [upgrading.md](upgrading.md) before enabling this.*
+Registries should see [Enabling the Referrers API](#enabling-the-referrers-api) before enabling this.*
 
 To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<reference>` <sup>[end-12a](#endpoints)</sup>.
 
 `<name>` is the namespace of the repository.
 Assuming a repository is found, this request MUST return a `200 OK` response code.
 
-Upon success, the response MUST be a JSON body with an Index containing a list of descriptors.
-Each descriptor is of an Image or Artifact manifest in the same `<name>` namespace with a `refers` field that specifies the value of `<reference>`.
-The descriptors MUST include an `artifactType` field that is set to the value of `artifactType` for an Artifact manifest if present, or the configuration descriptor's `mediaType` for an Image manifest.
-The descriptors MUST include annotations from the manifest of the Image or Artifact.
+Upon success, the response MUST be a JSON body with an Image Index containing a list of descriptors.
+Each descriptor is of an Image or Artifact Manifest in the same `<name>` namespace with a `refers` field that specifies the value of `<reference>`.
+The descriptors MUST include an `artifactType` field that is set to the value of `artifactType` for an Artifact Manifest if present, or the configuration descriptor's `mediaType` for an Image Manifest.
+The descriptors MUST include annotations from the Image or Artifact Manifest.
 If a query results in no matching referrers, an empty manifest list MUST be returned.
 If `<ref>` does not exist, a registry MAY return an empty manifest list.
-After `<ref>` is pushed, the registry MUST include previously pushed entries in the manifest list.
+After `<ref>` is pushed, the registry MUST include previously pushed entries in the Image Index list.
 
 ```json
 {
@@ -552,7 +560,7 @@ After `<ref>` is pushed, the registry MUST include previously pushed entries in 
 ```
 
 A `Link` header MUST be included in the response when the descriptor list cannot be returned in a single manifest.
-Each response is an Index manifest with different descriptors in the `manifests` field.
+Each response is an Image Index with different descriptors in the `manifests` field.
 The `Link` header MUST be set according to [RFC5988](https://www.rfc-editor.org/rfc/rfc5988.html) with the Relation Type `rel="next"`.
 
 The registry SHOULD support filtering on `artifactType`.
@@ -591,8 +599,8 @@ Example response with filtering:
 ```
 
 If the [Referrers API](#listing-referrers) returns a 404, the client MUST fallback to pulling the [referrers tag schema](#referrers-tag-schema).
-The response SHOULD be an Index with the same content that would be expected from the Referrers API.
-If the response to the [Referrers API](#listing-referrers) is a 404, and the tag schema does not return a valid Index, the client SHOULD assume there are no Referrers to the manifest.
+The response SHOULD be an Image Index with the same content that would be expected from the Referrers API.
+If the response to the [Referrers API](#listing-referrers) is a 404, and the tag schema does not return a valid Image Index, the client SHOULD assume there are no Referrers to the manifest.
 
 #### Content Management
 
@@ -616,14 +624,14 @@ To delete a manifest, perform a `DELETE` request to a path in the following form
 Upon success, the registry MUST respond with a `202 Accepted` code.
 If the repository does not exist, the response MUST return `404 Not Found`.
 
-When deleting an Image or Artifact manifest that contains a `Refers` field, and the [Referrers API](#listing-referrers) returns a 404, clients SHOULD:
+When deleting an Image or Artifact manifest that contains a `refers` field, and the [Referrers API](#listing-referrers) returns a 404, clients SHOULD:
 
-1. Pull the Index using the [referrers tag schema](#referrers-tag-schema).
+1. Pull the Image Index using the [referrers tag schema](#referrers-tag-schema).
 1. Delete the descriptor from the manifest list to the deleted manifest.
-1. Push the updated Index using the same [referrers tag schema](#referrers-tag-schema).
-   The client MAY use conditional HTTP requests to prevent overwriting an Index that has changed since it was first pulled.
+1. Push the updated Image Index using the same [referrers tag schema](#referrers-tag-schema).
+   The client MAY use conditional HTTP requests to prevent overwriting an Image Index that has changed since it was first pulled.
 
-When deleting a manifest that has an associated [referrers tag schema](#referrers-tag-schema), clients MAY also delete the referrers tag when it returns a valid Index manifest.
+When deleting a manifest that has an associated [referrers tag schema](#referrers-tag-schema), clients MAY also delete the referrers tag when it returns a valid Image Index.
 
 ##### Deleting Blobs
 
@@ -640,14 +648,8 @@ This section describes client fallback procedures that MUST be implemented when 
 
 #### Unavailable Referrers API
 
-The following manifests are described in the [OCI Image Format Specification](https://github.com/opencontainers/image-spec):
-
-- [Artifact](https://github.com/opencontainers/image-spec/blob/main/artifact.md)
-- [Image](https://github.com/opencontainers/image-spec/blob/main/manifest.md)
-- [Index](https://github.com/opencontainers/image-spec/blob/main/image-index.md)
-
-A client that pushes an Image or Artifact manifest with a defined `Refers` field MUST verify the [Referrers API](#listing-referrers) is available or fallback to updating the Index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
-A client querying the [Referrers API](#listing-referrers) and receiving a 404 MUST fallback to using an Index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
+A client that pushes an Image or Artifact Manifest with a defined `refers` field MUST verify the [Referrers API](#listing-referrers) is available or fallback to updating the Image Index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
+A client querying the [Referrers API](#listing-referrers) and receiving a 404 MUST fallback to using an Image Index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
 
 ##### Referrers Tag Schema
 
@@ -658,14 +660,27 @@ A client querying the [Referrers API](#listing-referrers) and receiving a 404 MU
 - `<alg>`: the digest algorithm (e.g. `sha256` or `sha512`)
 - `<ref>`: the digest from the `refers` field (limit of 64 characters)
 
-For example, a manifest with the `Refers` field digest set to `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` in the `registry.example.org/project` repository would have a descriptor in the Index at `registry.example.org/project:sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.
+For example, a manifest with the `refers` field digest set to `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` in the `registry.example.org/project` repository would have a descriptor in the Image Index at `registry.example.org/project:sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.
 
-This tag should return an Index matching the expected response of the [Referrers API](#listing-referrers).
-Maintaining the content of this tag is the responsibility of clients pushing and deleting Image and Artifact manifests that contain a `Refers` field.
+This tag should return an Image Index matching the expected response of the [Referrers API](#listing-referrers).
+Maintaining the content of this tag is the responsibility of clients pushing and deleting Image and Artifact Manifests that contain a `refers` field.
 
 Multiple clients could attempt to update the tag simultaneously resulting in race conditions and data loss.
 Protection against race conditions is the responsibility of clients and end users, and can be resolved by using a registry that provides the [Referrers API](#listing-referrers).
 Clients MAY use a conditional HTTP push for registries that support ETag conditions to avoid conflicts with other clients.
+
+### Upgrade Procedures
+
+The following describes procedures for upgrading to a newer version of the spec and the process to enable new APIs.
+
+#### Enabling the Referrers API
+
+The Referrers API here is described by [Listing Referrers](#listing-referrers) and [end-12a](#endpoints).
+When registries add support for the Referrers API, this API needs to account for manifests that were pushed before the API was available using the [Referrers Tag Schema](#referrers-tag-schema).
+
+1. Registries MUST include preexisting Image and Artifact manifests that are listed in an Image Index tagged with the [referrers tag schema](#referrers-tag-schema) and have a valid `refers` field in the Referrers API response.
+1. Registries MAY include all preexisting Image and Artifact manifests with a `refers` field in the Referrers API response.
+1. After the Referrers API is enabled, Registries MUST include all newly pushed Image and Artifact manifests with a valid `refers` field in the Referrers API response.
 
 ### API
 
@@ -748,6 +763,9 @@ The following is a list of documents referenced in this spec:
 | ------ | ----- | ----------- |
 | apdx-1 | [Docker Registry HTTP API V2](https://github.com/docker/distribution/blob/5cb406d511b7b9163bff9b6439072e4892e5ae3b/docs/spec/api.md) | The original document upon which this spec was based |
 | apdx-1 | [Details](https://github.com/opencontainers/distribution-spec/blob/ef28f81727c3b5e98ab941ae050098ea664c0960/detail.md) | Historical document describing original API endpoints and requests in detail |
-| apdx-2 | [OCI Image Spec - manifests](https://github.com/opencontainers/image-spec/blob/v1.0.1/manifest.md) | Description of manifests, defined by the OCI Image Spec |
+| apdx-2 | [OCI Image Spec - image](https://github.com/opencontainers/image-spec/blob/v1.0.1/manifest.md) | Description of an image manifest, defined by the OCI Image Spec |
 | apdx-3 | [OCI Image Spec - digests](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests) | Description of digests, defined by the OCI Image Spec |
 | apdx-4 | [OCI Image Spec - config](https://github.com/opencontainers/image-spec/blob/v1.0.1/config.md) | Description of configs, defined by the OCI Image Spec |
+| apdx-5 | [OCI Image Spec - descriptor](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md) | Description of descriptors, defined by the OCI Image Spec |
+| apdx-6 | [OCI Image Spec - index](https://github.com/opencontainers/image-spec/blob/v1.0.1/image-indexmd) | Description of image index, defined by the OCI Image Spec |
+| apdx-7 | [OCI Image Spec - artifact](https://github.com/opencontainers/image-spec/blob/main/artifact.md) | Description of an artifact manifest, defined by the OCI Image Spec |
