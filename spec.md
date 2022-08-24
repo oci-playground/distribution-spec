@@ -528,7 +528,7 @@ The descriptors MUST include an `artifactType` field that is set to the value of
 The descriptors MUST include annotations from the Image or Artifact Manifest.
 If a query results in no matching referrers, an empty manifest list MUST be returned.
 If `<ref>` does not exist, a registry MAY return an empty manifest list.
-After `<ref>` is pushed, the registry MUST include previously pushed entries in the Image Index list.
+After `<ref>` is pushed, the registry MUST include previously pushed entries in the Referrers list.
 
 ```json
 {
@@ -626,10 +626,10 @@ If the repository does not exist, the response MUST return `404 Not Found`.
 
 When deleting an Image or Artifact manifest that contains a `refers` field, and the [Referrers API](#listing-referrers) returns a 404, clients SHOULD:
 
-1. Pull the Image Index using the [referrers tag schema](#referrers-tag-schema).
-1. Delete the descriptor from the manifest list to the deleted manifest.
-1. Push the updated Image Index using the same [referrers tag schema](#referrers-tag-schema).
-   The client MAY use conditional HTTP requests to prevent overwriting an Image Index that has changed since it was first pulled.
+1. Pull the Referrers list using the [referrers tag schema](#referrers-tag-schema).
+1. Remove the descriptor entry from the array of manifests that references the deleted manifest.
+1. Push the updated Referrers list using the same [referrers tag schema](#referrers-tag-schema).
+   The client MAY use conditional HTTP requests to prevent overwriting an Referrers list that has changed since it was first pulled.
 
 When deleting a manifest that has an associated [referrers tag schema](#referrers-tag-schema), clients MAY also delete the referrers tag when it returns a valid Image Index.
 
@@ -660,7 +660,7 @@ A client querying the [Referrers API](#listing-referrers) and receiving a 404 MU
 - `<alg>`: the digest algorithm (e.g. `sha256` or `sha512`)
 - `<ref>`: the digest from the `refers` field (limit of 64 characters)
 
-For example, a manifest with the `refers` field digest set to `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` in the `registry.example.org/project` repository would have a descriptor in the Image Index at `registry.example.org/project:sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.
+For example, a manifest with the `refers` field digest set to `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` in the `registry.example.org/project` repository would have a descriptor in the Referrers list at `registry.example.org/project:sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.
 
 This tag should return an Image Index matching the expected response of the [Referrers API](#listing-referrers).
 Maintaining the content of this tag is the responsibility of clients pushing and deleting Image and Artifact Manifests that contain a `refers` field.
