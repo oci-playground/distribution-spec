@@ -72,7 +72,7 @@ Several terms are used frequently in this document and warrant basic definitions
 - **Artifact Manifest**: a manifest containing a collection of blobs, defined under the OCI Image Spec <sup>[apdx-7](#appendix)</sup>.
 - **Config**: a blob referenced in the Image Manifest which contains metadata. Config is defined under the OCI Image Spec <sup>[apdx-4](#appendix)</sup>.
 - **Object**: one conceptual piece of content stored as Blobs with an accompanying Manifest. (This was previously described as an "Artifact", and has been renamed to avoid confusion with the "Artifact Manifest".)
-- **Descriptor**: a unique reference to content, either a Manifest or Blob, using a media type, Digest, and size. Descriptors are defined under the OCI Image Spec <sup>[apdx-5](#appendix)</sup>
+- **Descriptor**: a reference that describes the type, metadata and content address of referenced content. Descriptors are defined under the OCI Image Spec <sup>[apdx-5](#appendix)</sup>.
 - **Digest**: a unique identifier created from a cryptographic hash of a Blob's content. Digests are defined under the OCI Image Spec <sup>[apdx-3](#appendix)</sup>
 - **Tag**: a custom, human-readable Manifest identifier
 - **Refers**: an association from one manifest to another, typically used to attach an artifact to an image. The refers field is included in the Image and Artifact Manifests.
