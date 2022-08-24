@@ -6,7 +6,7 @@ The OCI Distribution Spec project defines an API protocol to facilitate and stan
 
 **[The specification can be found here](spec.md).**
 
-This repository also provides [Go types](specs-go) and [registry conformance tooling](conformance).
+This repository also provides [Go types](specs-go), and [registry conformance tooling](conformance).
 The Go types and validation should be compatible with the current Go release; earlier Go releases are not supported.
 
 Additional documentation about how this group operates:

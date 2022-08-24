@@ -68,8 +68,8 @@ Several terms are used frequently in this document and warrant basic definitions
 - **Blob**: the binary form of content that is stored by a Registry, addressable by a Digest
 - **Manifest**: a JSON document uploaded via the manifests endpoint. A manifest may reference other manifests and blobs in a repository via descriptors. Examples of manifests are defined under the OCI Image Spec <sup>[apdx-2](#appendix)</sup>, such as the Image Manifest, Image Index, and Artifact Manifest.</sup>
 - **Image Index**: a manifest containing a list of manifests, defined under the OCI Image Spec <sup>[apdx-6](#appendix)</sup>.
-- **Image Manifest**: a manifest containing a config descriptor and list of layer descriptors, commonly used for container images, defined under the OCI Image Spec <sup>[apdx-2](#appendix)</sup>.
-- **Artifact Manifest**: a manifest containing a list of blob descriptors, defined under the OCI Image Spec <sup>[apdx-7](#appendix)</sup>.
+- **Image Manifest**: a manifest containing a config descriptor and an indexed list of layers, commonly used for container images, defined under the OCI Image Spec <sup>[apdx-2](#appendix)</sup>.
+- **Artifact Manifest**: a manifest containing a collection of blobs, defined under the OCI Image Spec <sup>[apdx-7](#appendix)</sup>.
 - **Config**: a blob referenced in the Image Manifest which contains metadata. Config is defined under the OCI Image Spec <sup>[apdx-4](#appendix)</sup>.
 - **Object**: one conceptual piece of content stored as Blobs with an accompanying Manifest. (This was previously described as an "Artifact", and has been renamed to avoid confusion with the "Artifact Manifest".)
 - **Descriptor**: a unique reference to content, either a Manifest or Blob, using a media type, Digest, and size. Descriptors are defined under the OCI Image Spec <sup>[apdx-5](#appendix)</sup>
